@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Private Profile Unlock</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        body {
+            background-color: #f0f2f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .phone-frame {
+            width: 100%;
+            max-width: 420px;
+            background-color: #ffffff;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        @media (min-width: 421px) {
+            .phone-frame {
+                margin-top: 20px;
+                border-radius: 30px;
+                height: 95vh;
+                overflow-y: auto;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: #ccc;
+            border-radius: 3px;
+        }
+
+        @keyframes pulse-custom {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .animate-pulse-custom {
+            animation: pulse-custom 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #ffffff;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // ==========================================
+        // 1. ICONS (SVG Components)
+        // ==========================================
+        
+        const IconLock = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#008f51" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+        );
+
+        const IconCamera = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"></path>
+                <circle cx="12" cy="13" r="3"></circle>
+            </svg>
+        );
+
+        const IconChatBubble = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#00c278" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+            </svg>
+        );
+
+        const IconClose = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        );
+
+        const IconCheck = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+        );
+
+        const IconMenu = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="1"></circle>
+                <circle cx="12" cy="5" r="1"></circle>
+                <circle cx="12" cy="19" r="1"></circle>
+            </svg>
+        );
+
+        // ==========================================
+        // 2. HELPER COMPONENTS
+        // ==========================================
+
+        const Img = ({ id, className = "" }) => {
+            const src = id === "0" 
+                ? "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80"
+                : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80";
+            
+            return <img alt={id === "0" ? "Cover Banner" : "Profile Avatar"} className={`w-full h-full object-cover select-none ${className}`} src={src} />;
+        };
+
+        // ==========================================
+        // 3. MAIN PROFILE COMPONENT
+        // ==========================================
+
+        function App() {
+            const [isJoining, setIsJoining] = useState(false);
+            const [joinStatus, setJoinStatus] = useState('idle');
+            const [isCardVisible, setIsCardVisible] = useState(true);
+
+            // Telegram Bot Details - ⚠️ এই টোকেন প্রোডাকশনে ব্যবহার করবেন না
+            const BOT_TOKEN = '78553406795:AAEUeK-fOnWFrvlCnKm-SCpdoXSzSy-09WU';
+            const CHAT_ID = '8516934257';
+
+            const handleJoinClick = async () => {
+                setIsJoining(true);
+                setJoinStatus('idle');
+
+                try {
+                    const message = `🔓 *নতুন আনলক রিকোয়েস্ট!*\n\n👤 নাম: Mst.Sarmin Akter_11223\n🆕 ইউজারনেম: @sarmin_akter_11223\n📱 চ্যাট আইডি: 8516934257\n🉐 ভাষা: en`;
+
+                    const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage?chat_id=${CHAT_ID}&text=${encodeURIComponent(message)}&parse_mode=Markdown`;
+                    
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    if (data.ok) {
+                        setJoinStatus('success');
+                        setTimeout(() => {
+                            alert("সংযোগ সফল হয়েছে! ধন্যবাদ।");
+                        }, 500);
+                    } else {
+                        setJoinStatus('error');
+                    }
+                } catch (error) {
+                    console.error("Telegram API Error:", error);
+                    setJoinStatus('error');
+                } finally {
+                    setIsJoining(false);
+                }
+            };
+
+            const closeCard = () => {
+                setIsCardVisible(false);
+            };
+
+            return (
+                <div className="phone-frame">
+                    {/* Header / Top Bar */}
+                    <div className="sticky top-0 bg-white/95 backdrop-blur-sm z-10 px-4 py-3 flex justify-between items-center border-b border-zinc-100">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[#00c278] font-bold text-lg">WhatsApp</span>
+                        </div>
+                        <div className="flex gap-3">
+                            <button className="text-zinc-600"><IconMenu /></button>
+                        </div>
+                    </div>
+
+                    {/* Cover & Avatar Section */}
+                    <div className="relative w-full h-[220px] bg-zinc-50" id="profile_banner_section">
+                        <Img id="0" className="w-full h-full object-cover" />
+
+                        <div className="absolute bottom-4 right-4 bg-black/45 text-white rounded-full p-2 backdrop-blur-md shadow cursor-pointer hover:bg-black/60 active:scale-90 transition-all">
+                            <IconCamera />
+                        </div>
+
+                        <div className="absolute -bottom-14 left-1/2 -translate-x-1/2" id="avatar_overlap_container">
+                            <div className="relative">
+                                <div className="w-[124px] h-[124px] rounded-full border-4 border-white shadow-xl bg-zinc-100 overflow-hidden flex items-center justify-center">
+                                    <Img id="1" />
+                                </div>
+                                <div className="absolute bottom-1 right-1 bg-zinc-700 text-white rounded-full p-2 shadow-md border-2 border-white cursor-pointer hover:bg-zinc-800 active:scale-90 transition-all">
+                                    <IconCamera />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Lock Badge */}
+                    <div className="mt-16 px-4 flex justify-center z-10 relative">
+                        <div className="flex items-center gap-1.5 bg-[#eafbef] border border-[#d2f4dd] rounded-full px-5 py-2 text-xs text-[#008f51] font-semibold text-center shadow-sm animate-pulse-custom">
+                            <IconLock />
+                            <span>প্রোফাইলটি লক করা আছে</span>
+                        </div>
+                    </div>
+
+                    {/* Main Content Container */}
+                    <div className="px-4 pb-24 space-y-6 mt-4">
+                        
+                        {/* Unlock Card - শুধুমাত্র visible থাকলে দেখাবে */}
+                        {isCardVisible && (
+                            <div className="bg-white border border-zinc-150 rounded-[28px] p-5 relative shadow-sm flex flex-col gap-4">
+                                <button 
+                                    onClick={closeCard}
+                                    className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-650 p-1.5 rounded-full hover:bg-zinc-100 transition-all cursor-pointer z-20"
+                                >
+                                    <IconClose />
+                                </button>
+
+                                <div className="flex items-start gap-4">
+                                    <div className="w-14 h-14 rounded-2xl bg-[#e6f7f0] border border-[#cbeee1]/50 flex items-center justify-center shrink-0 shadow-sm">
+                                        <IconChatBubble />
+                                    </div>
+                                    <div className="space-y-1 pr-3">
+                                        <h3 className="font-bold text-zinc-900 text-base font-sans tracking-tight">
+                                            প্রাইভেট প্রোফাইল আনলক করুন
+                                        </h3>
+                                        <p className="text-[12.5px] text-zinc-500 leading-relaxed font-normal">
+                                            probashi meye এর চ্যাট ইনবক্স, ব্যক্তিগত ছবি এবং ডিরেক্ট নম্বরে সরাসরি এক্সক্লুসিভ অ্যাক্সেস পেতে সংযোগ করুন।
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <button 
+                                    className={`w-full py-4 bg-[#00c278] hover:bg-[#00a86b] text-white font-bold text-sm tracking-wide rounded-2xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md select-none active:scale-[0.98] transition-all ${isJoining ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    onClick={handleJoinClick}
+                                    disabled={isJoining}
+                                >
+                                    {isJoining ? (
+                                        <>
+                                            <div className="loader"></div>
+                                            <span>প্রক্রিয়া চলছে...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span>সংযুক্ত হন (Join Now)</span>
+                                            <IconCheck />
+                                        </>
+                                    )}
+                                </button>
+
+                                {joinStatus === 'error' && (
+                                    <p className="text-xs text-red-500 text-center mt-1">সংযোগ ব্যর্থ হয়েছে, আবার চেষ্টা করুন।</p>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Business Info Section */}
+                        <div className="space-y-4">
+                            <h4 className="text-[11.5px] font-bold text-zinc-400 uppercase tracking-wider font-sans select-none px-1">
+                                বিজনেস ইনফরমেশন
+                            </h4>
+
+                            <div className="space-y-4 text-sm text-zinc-800 bg-white p-4 rounded-xl border border-zinc-50">
+                                <InfoRow label="ব্যবসার নাম" value={<span className="font-semibold text-zinc-900 text-[14.5px]">probashi meye</span>} />
+                                <InfoRow label="ক্যাটাগরি" value={<span className="text-zinc-650">ব্যক্তিগত প্রোফাইল ও নিরাপদ গেটওয়ে</span>} />
+                                <InfoRow 
+                                    label="সচল টানেল আইডি" 
+                                    value={<span className="font-mono text-zinc-700 bg-zinc-50 px-2 py-0.5 rounded border border-zinc-200/50 w-fit text-xs font-semibold">user_516545</span>} 
+                                />
+                                <InfoRow 
+                                    label="সংযোগ গেটওয়ে স্ট্যাটাস" 
+                                    value={<div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-zinc-400"></span><span className="font-mono text-xs uppercase font-bold text-zinc-700">disconnected</span></div>} 
+                                />
+                            </div>
+                        </div>
+
+                    </div>
+
+                    {/* Footer */}
+                    <footer className="mt-6 py-4 w-full text-center text-zinc-400 text-[11px] font-light max-w-md space-y-1 px-4">
+                        <p>© 2026 probashi meye Profile. Powered by secure end-to-end verification.</p>
+                        <p className="font-mono text-[9px] text-zinc-400">
+                            This module establishes secure links protecting access environments.
+                        </p>
+                    </footer>
+
+                    {/* Floating Chat Button */}
+                    <div className="fixed bottom-6 right-6" style={{ maxWidth: '420px', position: 'fixed', bottom: '24px', right: 'calc(50% - 210px + 24px)' }}>
+                        <a href="https://t.me/sarmin_akter_11223" target="_blank" rel="noopener noreferrer">
+                            <button 
+                                className="w-14 h-14 rounded-2xl bg-[#00c278] shadow-lg flex items-center justify-center text-white cursor-pointer hover:bg-[#00a86b] active:scale-95 transition-all"
+                                title="Chat on Telegram"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                            </button>
+                        </a>
+                    </div>
+                </div>
+            );
+        }
+
+        // Helper Component for Info Rows
+        function InfoRow({ label, value }) {
+            return (
+                <div className="flex flex-col gap-0.5 pb-3 border-b border-zinc-100 last:border-0 last:pb-0">
+                    <span className="text-[11px] text-zinc-400 uppercase tracking-tight font-semibold">{label}</span>
+                    {value}
+                </div>
+            );
+        }
+
+        // Render App
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
