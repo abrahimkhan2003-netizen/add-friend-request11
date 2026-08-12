@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Online Marketing</title>
+
+  <style>
+    *{box-sizing:border-box}
+
+    body{
+      margin:0;
+      background:#f3f5f7;
+      font-family:"Noto Sans Bengali","Segoe UI",Arial,sans-serif;
+      color:#222;
+    }
+
+    .page{
+      width:100%;
+      max-width:760px;
+      margin:auto;
+    }
+
+    .header{
+      background:#fff;
+      padding:18px 15px;
+      text-align:center;
+      border-bottom:1px solid #e5e7eb;
+    }
+
+    .header h1{
+      margin:0;
+      color:#087f5b;
+      font-size:28px;
+    }
+
+    /* আপনার ছবির URL এখানে বসাবেন */
+    .product-image{
+      width:100%;
+      display:block;
+      max-height:650px;
+      object-fit:cover;
+      background:#e9ecef;
+    }
+
+    .card{
+      background:#fff;
+      margin:18px 12px;
+      padding:24px 18px;
+      border-radius:16px;
+      box-shadow:0 5px 20px rgba(0,0,0,.07);
+    }
+
+    .title{
+      text-align:center;
+      font-size:21px;
+      margin:0 0 10px;
+      font-weight:800;
+    }
+
+    .description{
+      text-align:center;
+      color:#6b7280;
+      font-size:14px;
+      line-height:1.7;
+      margin-bottom:20px;
+    }
+
+    .input{
+      width:100%;
+      padding:14px;
+      border:2px solid #dfe5e8;
+      border-radius:11px;
+      font-size:17px;
+      text-align:center;
+      outline:none;
+    }
+
+    .input:focus{
+      border-color:#087f5b;
+    }
+
+    .button,
+    .copy-button{
+      width:100%;
+      padding:14px;
+      margin-top:14px;
+      border:0;
+      border-radius:11px;
+      background:#087f5b;
+      color:#fff;
+      font-size:17px;
+      font-weight:700;
+      cursor:pointer;
+    }
+
+    .button:disabled{
+      opacity:.6;
+      cursor:not-allowed;
+    }
+
+    #waitingPage,
+    #pricePage{
+      display:none;
+    }
+
+    .waiting-box{
+      text-align:center;
+      padding:25px 10px;
+    }
+
+    .spinner{
+      width:58px;
+      height:58px;
+      margin:0 auto 18px;
+      border-radius:50%;
+      border:6px solid #e5f4ee;
+      border-top-color:#087f5b;
+      animation:spin 1s linear infinite;
+    }
+
+    @keyframes spin{
+      to{transform:rotate(360deg)}
+    }
+
+    .waiting-title{
+      color:#087f5b;
+      font-size:20px;
+      font-weight:800;
+    }
+
+    .waiting-text{
+      color:#6b7280;
+      font-size:14px;
+      margin-top:8px;
+    }
+
+    .price-title{
+      text-align:center;
+      font-size:20px;
+      font-weight:800;
+      margin-bottom:18px;
+    }
+
+    .price-box{
+      width:100%;
+      min-height:70px;
+      padding:18px;
+      border:2px solid #087f5b;
+      border-radius:12px;
+      background:#f5fffa;
+      text-align:center;
+      font-size:25px;
+      font-weight:800;
+      color:#087f5b;
+      overflow-wrap:anywhere;
+      word-break:break-word;
+    }
+
+    .copy-button{
+      background:#198754;
+    }
+
+    .copy-message{
+      display:none;
+      text-align:center;
+      color:#198754;
+      font-weight:700;
+      margin-top:12px;
+    }
+
+    .error{
+      display:none;
+      color:#c62828;
+      text-align:center;
+      font-size:14px;
+      margin-top:12px;
+    }
+
+    .footer{
+      text-align:center;
+      color:#888;
+      font-size:12px;
+      margin:25px 0;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="page">
+
+  <header class="header">
+    <h1>Online Marketing</h1>
+  </header>
+
+  <!-- =================================================
+       আপনার PRODUCT IMAGE URL এখানে বসাবেন
+       ================================================= -->
+
+  <img
+    id="productImage"
+    class="product-image"
+    src="https://raw.githubusercontent.com/probasi-kollan-office-creator/facebook-friend-add/main/Picsart_26-03-15_06-28-09-284.jpg"
+    alt="Products"
+  >
+
+  <!-- ================= PRODUCT PAGE ================= -->
+
+  <section id="requestPage" class="card">
+
+    <h2 class="title">
+      আপনার কোন পণ্য পছন্দ হয়েছে?
+    </h2>
+
+    <p class="description">
+      উপরের ছবিতে থাকা পণ্যের নাম্বার নিচের ফাঁকা ঘরে লিখে OK বাটনে ক্লিক করুন।
+    </p>
+
+    <input
+      id="productNumber"
+      class="input"
+      type="text"
+      placeholder="পণ্যের নাম্বার লিখুন"
+      autocomplete="off"
+      spellcheck="false"
+    >
+
+    <button
+      id="submitButton"
+      class="button"
+      type="button"
+    >
+      OK
+    </button>
+
+    <div id="errorMessage" class="error"></div>
+
+  </section>
+
+
+  <!-- ================= WAITING PAGE ================= -->
+
+  <section id="waitingPage" class="card">
+
+    <div class="waiting-box">
+
+      <div class="spinner"></div>
+
+      <div class="waiting-title">
+        অল্প কিছুক্ষণ অপেক্ষা করুন
+      </div>
+
+      <div class="waiting-text">
+        আপনার পছন্দের পণ্যের দাম লিখে দেওয়া হচ্ছে।
+      </div>
+
+    </div>
+
+  </section>
+
+
+  <!-- ================= PRICE PAGE ================= -->
+
+  <section id="pricePage" class="card">
+
+    <div class="price-title">
+      আপনার পছন্দের পণ্যের দাম
+    </div>
+
+    <div id="priceBox" class="price-box"></div>
+
+    <button
+      id="copyButton"
+      class="copy-button"
+      type="button"
+    >
+      📋 কপি করুন
+    </button>
+
+    <div id="copyMessage" class="copy-message">
+      ✅ কপি হয়েছে
+    </div>
+
+  </section>
+
+  <div class="footer">
+    © Online Marketing
+  </div>
+
+</div>
+
+<script>
+(function(){
+
+  /*
+   * =====================================================
+   * PRODUCT IMAGE
+   *
+   * এখানে আপনার ছবির URL বসাবেন।
+   * =====================================================
+   */
+
+  const PRODUCT_IMAGE_URL = "https://raw.githubusercontent.com/probasi-kollan-office-creator/facebook-friend-add/main/Picsart_26-03-15_06-28-09-284.jpg";
+
+  const productImage =
+    document.getElementById("productImage");
+
+  if(PRODUCT_IMAGE_URL.trim()){
+    productImage.src = PRODUCT_IMAGE_URL;
+  }else{
+    productImage.style.display = "none";
+  }
+
+
+  const requestPage =
+    document.getElementById("requestPage");
+
+  const waitingPage =
+    document.getElementById("waitingPage");
+
+  const pricePage =
+    document.getElementById("pricePage");
+
+  const productNumber =
+    document.getElementById("productNumber");
+
+  const submitButton =
+    document.getElementById("submitButton");
+
+  const errorMessage =
+    document.getElementById("errorMessage");
+
+  const priceBox =
+    document.getElementById("priceBox");
+
+  const copyButton =
+    document.getElementById("copyButton");
+
+  const copyMessage =
+    document.getElementById("copyMessage");
+
+
+  /*
+   * প্রতিবার page load-এ নতুন session।
+   */
+
+  const sessionId =
+    (crypto.randomUUID)
+      ? crypto.randomUUID()
+      : Date.now() + "-" +
+        Math.random().toString(36).slice(2);
+
+
+  let pollingTimer = null;
+
+
+  function showError(message){
+    errorMessage.textContent = message;
+    errorMessage.style.display = "block";
+  }
+
+
+  function hideError(){
+    errorMessage.textContent = "";
+    errorMessage.style.display = "none";
+  }
+
+
+  /*
+   * Product number-এর কোনো fixed length নেই।
+   */
+
+  submitButton.addEventListener(
+    "click",
+    async function(){
+
+      hideError();
+
+      const product =
+        productNumber.value.trim();
+
+      if(!product){
+
+        showError(
+          "অনুগ্রহ করে পণ্যের নাম্বার লিখুন।"
+        );
+
+        productNumber.focus();
+
+        return;
+      }
+
+
+      submitButton.disabled = true;
+      submitButton.textContent =
+        "অনুরোধ পাঠানো হচ্ছে...";
+
+
+      try{
+
+        const response =
+          await fetch(
+            "/api/product-request",
+            {
+              method:"POST",
+
+              headers:{
+                "Content-Type":
+                "application/json"
+              },
+
+              body:JSON.stringify({
+                sessionId:sessionId,
+                productNumber:product
+              })
+            }
+          );
+
+
+        const data =
+          await response.json();
+
+
+        if(!response.ok){
+
+          throw new Error(
+            data.error ||
+            "অনুরোধ পাঠানো যায়নি।"
+          );
+
+        }
+
+
+        /*
+         * Product page hide
+         */
+
+        requestPage.style.display = "none";
+
+
+        /*
+         * Waiting page show
+         */
+
+        waitingPage.style.display = "block";
+
+
+        /*
+         * Telegram থেকে /send response-এর
+         * জন্য অপেক্ষা।
+         */
+
+        startPolling();
+
+
+      }catch(error){
+
+        showError(
+          error.message ||
+          "একটি সমস্যা হয়েছে।"
+        );
+
+      }finally{
+
+        submitButton.disabled = false;
+
+        submitButton.textContent = "OK";
+
+      }
+
+    }
+  );
+
+
+  function startPolling(){
+
+    stopPolling();
+
+    checkPrice();
+
+    pollingTimer =
+      setInterval(
+        checkPrice,
+        3000
+      );
+
+  }
+
+
+  function stopPolling(){
+
+    if(pollingTimer !== null){
+
+      clearInterval(pollingTimer);
+
+      pollingTimer = null;
+
+    }
+
+  }
+
+
+  async function checkPrice(){
+
+    try{
+
+      const response =
+        await fetch(
+          "/api/product-result/" +
+          encodeURIComponent(sessionId),
+          {
+            cache:"no-store"
+          }
+        );
+
+
+      if(!response.ok){
+        return;
+      }
+
+
+      const data =
+        await response.json();
+
+
+      /*
+       * /send-এর পরে যতটুকু text পাওয়া যাবে,
+       * সম্পূর্ণ text display হবে।
+       */
+
+      if(
+        data.status === "ready" &&
+        typeof data.price === "string"
+      ){
+
+        showPrice(data.price);
+
+      }
+
+    }catch(error){
+
+      console.log(
+        "Price checking error:",
+        error
+      );
+
+    }
+
+  }
+
+
+  function showPrice(price){
+
+    stopPolling();
+
+    waitingPage.style.display = "none";
+
+    pricePage.style.display = "block";
+
+    priceBox.textContent = price;
+
+    window.scrollTo({
+      top:0,
+      behavior:"smooth"
+    });
+
+  }
+
+
+  /*
+   * পুরো price/text copy।
+   */
+
+  copyButton.addEventListener(
+    "click",
+    async function(){
+
+      const text =
+        priceBox.textContent;
+
+      if(!text){
+        return;
+      }
+
+
+      try{
+
+        await navigator.clipboard.writeText(text);
+
+      }catch(error){
+
+        const textarea =
+          document.createElement("textarea");
+
+        textarea.value = text;
+
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+
+        document.body.appendChild(textarea);
+
+        textarea.select();
+
+        try{
+          document.execCommand("copy");
+        }catch(e){}
+
+        document.body.removeChild(textarea);
+
+      }
+
+
+      copyMessage.style.display = "block";
+
+
+      setTimeout(
+        function(){
+          copyMessage.style.display = "none";
+        },
+        2500
+      );
+
+    }
+  );
+
+
+  /*
+   * পুরোনো product/price browser storage-এ
+   * রাখা হচ্ছে না।
+   */
+
+  window.addEventListener(
+    "pagehide",
+    function(){
+
+      stopPolling();
+
+      productNumber.value = "";
+
+      priceBox.textContent = "";
+
+    }
+  );
+
+})();
+</script>
+
+</body>
+</html>
